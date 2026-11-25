@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EPIC Party 2027 Check-in</title>
+<script>
+/* ===== The only setting: the Web app link from the Settings tab of the Guest List sheet ===== */
+const API = 'https://script.google.com/macros/s/AKfycbxfrxEMDrthQ5wHyFAeiDrUQHiobjTz-xdnIQWTdbmaaGsQWBepR6yIzZn6m7q5ze6F/exec';
+</script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+:root { --dark:#1F2A24; --paper:#F7F3EA; --sand:#EFE6D3; --card:#FBFBF8; --line:#DDD3BF; --teal:#2F7D6D; --tealbg:#DDEFE8; --orange:#A3481A; --muted:#4A554E; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--dark); font-family:Arial, Helvetica, sans-serif; font-size:17px; line-height:1.45; }
+button { white-space:nowrap; font:inherit; font-weight:bold; cursor:pointer; border-radius:12px; border:2px solid var(--line); background:var(--card); color:var(--dark); padding:12px 18px; }
+button.primary { background:var(--teal); border-color:var(--teal); color:#fff; }
+button:disabled { opacity:.5; }
+input { font:inherit; padding:12px 14px; border:2px solid var(--line); border-radius:12px; width:100%; background:#fff; }
+header { background:var(--dark); color:var(--paper); padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+header b { font-size:19px; }
+header small { color:#CFD8D2; }
+main { padding:14px; max-width:1100px; margin:0 auto; }
+.stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.stat { background:var(--sand); border-radius:12px; padding:8px 14px; }
+.stat b { font-size:22px; display:block; }
+.stat span { font-size:13px; color:var(--muted); }
+.cols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+@media (max-width:760px) { .cols { grid-template-columns:minmax(0,1fr); } }
+.card { background:var(--card); border:2px solid var(--line); border-radius:16px; padding:14px; }
+.row { display:flex; gap:8px; }
+.results { display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:55vh; overflow:auto; }
+.res { text-align:left; width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px; background:#fff; font-weight:normal; white-space:normal; }
+.res.sel { border-color:var(--teal); background:var(--tealbg); }
+.res .n { font-weight:bold; }
+.res .s { font-size:14px; color:var(--muted); }
+.pill { font-size:13px; font-weight:bold; border-radius:20px; padding:3px 10px; white-space:nowrap; }
+.pill.in { background:var(--tealbg); color:#1E5C4F; }
+.pill.out { background:var(--sand); color:var(--muted); }
+.label { font-size:12px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; color:var(--orange); margin:0 0 4px; }
+h2 { margin:0 0 6px; font-size:26px; }
+.kv { display:grid; grid-template-columns:120px 1fr; gap:2px 10px; font-size:15px; margin:10px 0 14px; }
+.kv dt { color:var(--muted); } .kv dd { margin:0; font-weight:bold; }
+.stepper { display:flex; align-items:center; gap:12px; margin:6px 0 14px; }
+.stepper button { width:50px; height:50px; padding:0; font-size:24px; }
+.stepper b { font-size:26px; min-width:30px; text-align:center; }
+.ok { background:var(--tealbg); color:#1E5C4F; border-radius:12px; padding:12px; font-weight:bold; margin:8px 0; }
+.err { color:#A32D2D; font-weight:bold; min-height:22px; margin:8px 0; }
+.empty { color:#6B756F; text-align:center; padding:26px 10px; }
+.pinbox { max-width:380px; margin:50px auto; text-align:center; padding:0 16px; }
+.hide { display:none !important; }
+.formrow { margin-bottom:10px; }
+.formrow label { display:block; font-size:14px; color:var(--muted); margin-bottom:4px; }
+#scanbox { margin-top:10px; border-radius:12px; overflow:hidden; background:#000; }
+.small { font-size:14px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header><div><b>EPIC Party 2027</b><br><small>Registration booth</small></div><div><small id="sync"></small> <button id="refresh" class="hide">Refresh</button></div></header>
+
+<div id="pinview" class="pinbox">
+  <p class="label">Guests</p>
+  <p>Please show your QR code to the crew at the registration booth.</p>
+  <hr style="border:none;border-top:2px solid var(--line);margin:22px 0">
+  <p class="label">Crew only</p>
+  <input id="pin" type="password" inputmode="numeric" placeholder="Crew PIN" autocomplete="off">
+  <p class="err" id="pinerr"></p>
+  <button class="primary" id="pinbtn" style="width:100%">Open check-in</button>
+</div>
+
+<main id="app" class="hide">
+  <div class="stats" id="stats"></div>
+  <div class="cols">
+    <div class="card">
+      <div class="row"><button class="primary" id="scanbtn" style="flex:1">Scan QR</button><button id="walkbtn">Walk-in</button></div>
+      <div id="scanbox" class="hide"><div id="reader"></div></div>
+      <p class="err" id="scanerr"></p>
+      <input id="q" placeholder="Or type a name, code or organisation" autocomplete="off">
+      <div class="results" id="results"></div>
+    </div>
+    <div class="card" id="detail"></div>
+  </div>
+</main>
+
+<script>
+const START = (new URLSearchParams(location.search).get('code') || '').replace(/[^A-Za-z0-9-]/g, '');
+let PIN = '', DATA = null, SEL = START || null, PLUS = 0, BUSY = false, MSG = '', WALK = false, WV = { n:'', o:'', e:'' }, SCANNER = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+async function call(action, params) {
+  const u = new URL(API);
+  u.searchParams.set('api', action);
+  u.searchParams.set('pin', PIN);
+  Object.keys(params || {}).forEach(k => u.searchParams.set(k, params[k]));
+  BUSY = true;
+  try {
+    const r = await fetch(u.toString(), { credentials: 'omit', redirect: 'follow' });
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    return j.ok;
+  } catch (e) {
+    if (/Wrong PIN/.test(e.message)) { lock(e.message); throw e; }
+    throw new Error(/Failed to fetch|NetworkError|JSON/.test(e.message) ? 'No connection to the guest list. Check the internet and try again.' : e.message);
+  } finally { BUSY = false; }
+}
+function lock(m) { stopScan(); $('app').classList.add('hide'); $('refresh').classList.add('hide'); $('pinview').classList.remove('hide'); $('pinerr').textContent = m || ''; }
+async function load(first) {
+  try {
+    DATA = await call('booth');
+    store('epicPin', PIN);
+    $('pinview').classList.add('hide'); $('app').classList.remove('hide'); $('refresh').classList.remove('hide');
+    $('sync').textContent = 'Updated ' + new Date().toLocaleTimeString('en-MY', { hour:'numeric', minute:'2-digit' });
+    if (first && SEL) { const g = find(SEL); if (g) PLUS = g.plus; }
+    render();
+  } catch (e) { if (!/Wrong PIN/.test(e.message)) { if (DATA) { MSG = e.message; renderDetail(); } else $('pinerr').textContent = e.message; } }
+}
+function find(code) { return DATA.guests.find(g => g.code.toLowerCase() === String(code).toLowerCase()); }
+
+function render() {
+  let groups = 0, ppl = 0, exp = 0;
+  DATA.guests.forEach(g => { if (g.form !== 'Walk-in') exp += 1 + g.plus; if (g.inYes) { groups++; ppl += 1 + g.plusIn; } });
+  $('stats').innerHTML = '<div class="stat"><b>' + ppl + '</b><span>people checked in</span></div><div class="stat"><b>' + groups + ' of ' + DATA.guests.length + '</b><span>RSVPs and walk-ins arrived</span></div><div class="stat"><b>' + exp + '</b><span>people expected</span></div>';
+  renderResults(); renderDetail();
+}
+function renderResults() {
+  const q = $('q').value.trim().toLowerCase();
+  const list = q ? DATA.guests.filter(g => (g.name + ' ' + g.code + ' ' + g.org).toLowerCase().includes(q)) : [];
+  $('results').innerHTML = !q ? '' : list.length ? list.slice(0, 40).map(g => '<button class="res' + (SEL === g.code ? ' sel' : '') + '" data-c="' + esc(g.code) + '"><span><span class="n">' + esc(g.name) + '</span><br><span class="s">' + esc(g.code) + ' · ' + esc(g.form) + (g.org ? ' · ' + esc(g.org) : '') + (g.plus ? ' · +' + g.plus : '') + '</span></span>' + (g.inYes ? '<span class="pill in">In ' + esc(g.inAt) + '</span>' : '<span class="pill out">Not yet</span>') + '</button>').join('')
+    : '<p class="empty">No match. Try another spelling or their code, or tap Walk-in.</p>';
+}
+function renderDetail() {
+  const d = $('detail');
+  if (WALK) {
+    d.innerHTML = '<p class="label">New walk-in</p><div class="formrow"><label for="wn">Name</label><input id="wn"></div><div class="formrow"><label for="wo">Organisation (optional)</label><input id="wo"></div><div class="formrow"><label for="we">Email (optional)</label><input id="we" type="email"></div>' +
+      '<p class="small" style="margin:6px 0 0">Plus-ones with them</p><div class="stepper"><button id="pm">−</button><b>' + PLUS + '</b><button id="pp">+</button></div>' +
+      '<p class="err">' + esc(MSG) + '</p><div class="row"><button class="primary" id="wsave" style="flex:1">Add and check in</button><button id="wcancel">Cancel</button></div>';
+    $('wn').value = WV.n; $('wo').value = WV.o; $('we').value = WV.e;
+    $('pm').onclick = () => { keep(); PLUS = Math.max(0, PLUS - 1); renderDetail(); };
+    $('pp').onclick = () => { keep(); PLUS = Math.min(10, PLUS + 1); renderDetail(); };
+    $('wcancel').onclick = () => { WALK = false; MSG = ''; renderDetail(); };
+    $('wsave').onclick = async () => {
+      keep(); if (!WV.n.trim()) { MSG = 'Enter the guest’s name first.'; return renderDetail(); }
+      if (BUSY) return; $('wsave').disabled = true; $('wsave').textContent = 'Adding…';
+      try { const g = await call('walkin', { name: WV.n, email: WV.e, org: WV.o, plus: PLUS }); DATA.guests.push(g); WALK = false; SEL = g.code; MSG = ''; WV = { n:'', o:'', e:'' }; $('q').value = g.name; render(); }
+      catch (e) { MSG = e.message; renderDetail(); }
+    };
+    return;
+  }
+  const g = SEL && find(SEL);
+  if (!g) { d.innerHTML = '<p class="empty">' + (SEL ? 'Code ' + esc(SEL) + ' isn’t on the list. Search by name instead.' : 'Tap Scan QR, or search for a guest.') + '</p>'; return; }
+  let h = '<p class="label">' + esc(g.form) + '</p><h2>' + esc(g.name) + '</h2><dl class="kv"><dt>Code</dt><dd>' + esc(g.code) + '</dd>' + (g.org ? '<dt>Organisation</dt><dd>' + esc(g.org) + '</dd>' : '') + '<dt>RSVP plus-ones</dt><dd>' + g.plus + '</dd></dl>';
+  if (!g.inYes) {
+    h += '<p class="small" style="margin:0">Plus-ones arriving with them now</p><div class="stepper"><button id="pm">−</button><b>' + PLUS + '</b><button id="pp">+</button></div>' +
+      '<p class="err">' + esc(MSG) + '</p><button class="primary" id="go" style="width:100%;padding:16px;font-size:20px">Check in ' + (1 + PLUS) + (PLUS ? ' people' : ' person') + '</button>';
+  } else {
+    h += '<div class="ok">Checked in at ' + esc(g.inAt) + (g.plusIn ? ' with ' + g.plusIn + (g.plusIn > 1 ? ' plus-ones' : ' plus-one') : '') + '</div>' +
+      '<p class="err">' + esc(MSG) + '</p><div class="row"><button id="next" class="primary" style="flex:1">Next guest</button><button id="undo">Undo</button></div>';
+  }
+  d.innerHTML = h;
+  if (!g.inYes) {
+    $('pm').onclick = () => { PLUS = Math.max(0, PLUS - 1); renderDetail(); };
+    $('pp').onclick = () => { PLUS = Math.min(10, PLUS + 1); renderDetail(); };
+    $('go').onclick = async () => {
+      if (BUSY) return; $('go').disabled = true; $('go').textContent = 'Checking in…'; MSG = '';
+      try { Object.assign(g, await call('checkin', { code: g.code, plus: PLUS })); render(); } catch (e) { MSG = e.message; renderDetail(); }
+    };
+  } else {
+    $('next').onclick = () => { SEL = null; MSG = ''; $('q').value = ''; render(); };
+    $('undo').onclick = async () => { if (BUSY) return; MSG = ''; try { Object.assign(g, await call('undo', { code: g.code })); PLUS = g.plus; render(); } catch (e) { MSG = e.message; renderDetail(); } };
+  }
+}
+function keep() { if ($('wn')) WV = { n: $('wn').value, o: $('wo').value, e: $('we').value }; }
+
+/* ----- Camera scanner ----- */
+function codeFrom(text) {
+  const t = String(text || '');
+  const m = t.match(/[?&]code=([A-Za-z0-9-]+)/) || t.match(/\b([A-Za-z]{1,4}-[A-Za-z0-9]{3,8})\b/);
+  return m ? m[1] : '';
+}
+async function startScan() {
+  $('scanerr').textContent = '';
+  if (typeof Html5Qrcode === 'undefined') { $('scanerr').textContent = 'Scanner didn’t load. Search by name instead.'; return; }
+  $('scanbox').classList.remove('hide'); $('scanbtn').textContent = 'Stop scanning';
+  SCANNER = SCANNER || new Html5Qrcode('reader');
+  try {
+    await SCANNER.start({ facingMode: 'environment' }, { fps: 10, qrbox: 230 }, async text => {
+      const code = codeFrom(text);
+      await stopScan();
+      if (!code) { $('scanerr').textContent = 'That QR isn’t an EPIC Party code. Search by name instead.'; return; }
+      if (!find(code)) await load(false);
+      WALK = false; SEL = code; MSG = ''; const g = find(code); PLUS = g ? g.plus : 0; $('q').value = ''; render();
+      if (navigator.vibrate) navigator.vibrate(80);
+    });
+  } catch (e) {
+    await stopScan();
+    $('scanerr').textContent = 'Couldn’t open the camera. Allow camera access for this page, or search by name.';
+  }
+}
+async function stopScan() {
+  $('scanbox').classList.add('hide'); $('scanbtn').textContent = 'Scan QR';
+  if (SCANNER && SCANNER.isScanning) { try { await SCANNER.stop(); } catch (e) {} }
+}
+
+$('scanbtn').onclick = () => { if (SCANNER && SCANNER.isScanning) stopScan(); else startScan(); };
+$('q').oninput = renderResults;
+$('results').onclick = e => { const b = e.target.closest('.res'); if (!b) return; WALK = false; SEL = b.dataset.c; MSG = ''; const g = find(SEL); PLUS = g ? g.plus : 0; render(); };
+$('walkbtn').onclick = () => { stopScan(); WALK = true; MSG = ''; PLUS = 0; WV = { n: $('q').value, o:'', e:'' }; renderDetail(); };
+$('refresh').onclick = () => { if (!BUSY) load(false); };
+$('pinbtn').onclick = () => { PIN = $('pin').value.trim(); if (!PIN) { $('pinerr').textContent = 'Enter the crew PIN.'; return; } $('pinerr').textContent = 'Opening…'; load(true); };
+$('pin').onkeydown = e => { if (e.key === 'Enter') $('pinbtn').click(); };
+setInterval(() => { if (DATA && !BUSY && !WALK && !(SCANNER && SCANNER.isScanning)) load(false); }, 30000);
+
+if (API.indexOf('PASTE_') === 0) { $('pinerr').textContent = 'Setup needed: paste the Web app link into this page (line 9).'; }
+else { const saved = store('epicPin'); if (saved) { PIN = saved; load(true); } }
+</script>
+</body>
+</html>
